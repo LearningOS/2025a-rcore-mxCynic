@@ -24,15 +24,13 @@ const SYSCALL_TRACE: usize = 410;
 mod fs;
 mod process;
 
+use crate::task::calltime_add;
 use fs::*;
 use process::*;
 
-static mut SYSCALL_CAL: [isize; 500] = [0; 500];
 /// handle syscall exception with `syscall_id` and other arguments
 pub fn syscall(syscall_id: usize, args: [usize; 3]) -> isize {
-    unsafe {
-        SYSCALL_CAL[syscall_id] += 1;
-    }
+    calltime_add(syscall_id);
     match syscall_id {
         SYSCALL_WRITE => sys_write(args[0], args[1] as *const u8, args[2]),
         SYSCALL_EXIT => sys_exit(args[0] as i32),

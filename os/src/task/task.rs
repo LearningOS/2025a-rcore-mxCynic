@@ -2,6 +2,7 @@
 
 use super::TaskContext;
 
+const MAX_SYSCALL_NUM: usize = 500;
 /// The task control block (TCB) of a task.
 #[derive(Copy, Clone)]
 pub struct TaskControlBlock {
@@ -9,6 +10,8 @@ pub struct TaskControlBlock {
     pub task_status: TaskStatus,
     /// The task context
     pub task_cx: TaskContext,
+    /// syscall times
+    pub call_times: [isize; MAX_SYSCALL_NUM],
 }
 
 /// The status of a task
@@ -22,4 +25,18 @@ pub enum TaskStatus {
     Running,
     /// exited
     Exited,
+}
+
+impl TaskControlBlock {
+    /// syscall time 次数加一
+    pub fn calltime_add(&mut self, syscall_id: usize) {
+        self.call_times[syscall_id] += 1;
+        // let a = self.sys_call_times[syscall_id];
+        // println!("{}", a);
+    }
+
+    /// 查询 syscalltime
+    pub fn calltime(&self, syscall_id: usize) -> isize {
+        self.call_times[syscall_id]
+    }
 }
