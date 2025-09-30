@@ -1,9 +1,10 @@
 //! Process management syscalls
 
 use crate::{
-    mm::translated_byte_buffer,
+    config::PAGE_SIZE,
+    mm::{translated_byte_buffer, PageTable, VirtAddr},
     task::{
-        change_program_brk, current_user_token, exit_current_and_run_next,
+        calltime, change_program_brk, current_user_token, exit_current_and_run_next, mmap, munmap,
         suspend_current_and_run_next,
     },
     timer::get_time,
@@ -63,22 +64,70 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 
 /// TODO: Finish sys_trace to pass testcases
 /// HINT: You might reimplement it with virtual memory management.
-pub fn sys_trace(_trace_request: usize, _id: usize, _data: usize) -> isize {
+pub fn sys_trace(trace_request: usize, id: usize, data: usize) -> isize {
     // trace!("kernel: sys_trace");
 
-    -1
+    let token = current_user_token();
+    let page_teble = PageTable::from_token(token);
+    let va = VirtAddr::from(id);
+
+    const MAX_VA: usize = (1 << 38) - 1;
+    const MIN_VA: usize = (!0) << 38;
+    if !(id <= MAX_VA || id >= MIN_VA) {
+        return -1;
+    }
+
+    match trace_request {
+        0 => match page_teble.translate(va.floor()) {
+            Some(pte) => {
+                if pte.readable() {
+                    let buffers = translated_byte_buffer(token, id as *const u8, 1);
+                    buffers[0][0] as isize
+                } else {
+                    -1
+                }
+            }
+            None => -1,
+        },
+        1 => match page_teble.translate(va.floor()) {
+            Some(pte) => {
+                if pte.writable() {
+                    let mut buffers = translated_byte_buffer(token, id as *mut u8, 1);
+                    buffers[0][0] = data as u8;
+                    0
+                } else {
+                    -1
+                }
+            }
+            None => -1,
+        },
+        2 => calltime(id),
+        _ => -1,
+    }
 }
 
 // YOUR JOB: Implement mmap.
-pub fn sys_mmap(_start: usize, _len: usize, _port: usize) -> isize {
-    trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
+    // trace!("kernel: sys_mmap NOT IMPLEMENTED YET!");
+
+    if len == 0 {
+        return -1;
+    }
+    if (start & (PAGE_SIZE - 1) != 0) || (port & !0x7 != 0) || (port & 0x7 == 0) {
+        return -1;
+    }
+    mmap(start, len, port)
 }
 
 // YOUR JOB: Implement munmap.
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    // trace!("kernel: sys_munmap NOT IMPLEMENTED YET!");
+
+    // page.page_offset != 0 就是没有对齐
+    if len == 0 || (start & (PAGE_SIZE - 1)) != 0 || (len & (PAGE_SIZE - 1)) != 0 {
+        return -1;
+    }
+    munmap(start, len)
 }
 /// change data segment size
 pub fn sys_sbrk(size: i32) -> isize {

@@ -6,6 +6,7 @@ use crate::mm::{
 };
 use crate::trap::{trap_handler, TrapContext};
 
+const SYS_CT_MAX: usize = 500;
 /// The task control block (TCB) of a task.
 pub struct TaskControlBlock {
     /// Save task context
@@ -28,6 +29,9 @@ pub struct TaskControlBlock {
 
     /// Program break
     pub program_brk: usize,
+
+    /// calltimes cont
+    pub calltimes: [isize; SYS_CT_MAX],
 }
 
 impl TaskControlBlock {
@@ -55,6 +59,7 @@ impl TaskControlBlock {
             kernel_stack_top.into(),
             MapPermission::R | MapPermission::W,
         );
+        let calltimes = [0; 500];
         let task_control_block = Self {
             task_status,
             task_cx: TaskContext::goto_trap_return(kernel_stack_top),
@@ -63,6 +68,7 @@ impl TaskControlBlock {
             base_size: user_sp,
             heap_bottom: user_sp,
             program_brk: user_sp,
+            calltimes,
         };
         // prepare TrapContext in user space
         let trap_cx = task_control_block.get_trap_cx();
@@ -95,6 +101,15 @@ impl TaskControlBlock {
         } else {
             None
         }
+    }
+
+    /// syscall_id add 1
+    pub fn calltime_add(&mut self, id: usize) {
+        self.calltimes[id] += 1;
+    }
+    /// check syscall_id time
+    pub fn calltime(&mut self, id: usize) -> isize {
+        self.calltimes[id]
     }
 }
 

@@ -15,6 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::PageTable;
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -153,6 +154,45 @@ impl TaskManager {
             panic!("All applications completed!");
         }
     }
+
+    /// syscall_id add 1
+    fn calltime_add(&self, id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].calltime_add(id);
+    }
+
+    /// check syscall_id times
+    fn calltime(&self, id: usize) -> isize {
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        inner.tasks[cur].calltime(id)
+    }
+
+    /// mmap
+    fn mmap(&self, start: usize, len: usize, port: usize) -> isize {
+        let token = self.get_current_token();
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+
+        let page_table = &mut PageTable::from_token(token);
+
+        let memory_set = &mut inner.tasks[cur].memory_set;
+
+        memory_set.mmap(start, len, port, page_table)
+    }
+    /// munmap
+    fn munmap(&self, start: usize, len: usize) -> isize {
+        let token = self.get_current_token();
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+
+        let page_table = &mut PageTable::from_token(token);
+
+        let memory_set = &mut inner.tasks[cur].memory_set;
+
+        memory_set.munmap(start, len, page_table)
+    }
 }
 
 /// Run the first task in task list.
@@ -201,4 +241,23 @@ pub fn current_trap_cx() -> &'static mut TrapContext {
 /// Change the current 'Running' task's program break
 pub fn change_program_brk(size: i32) -> Option<usize> {
     TASK_MANAGER.change_current_program_brk(size)
+}
+
+/// syscall_id add 1
+pub fn calltime_add(id: usize) {
+    TASK_MANAGER.calltime_add(id);
+}
+
+/// check syscall_id times
+pub fn calltime(id: usize) -> isize {
+    TASK_MANAGER.calltime(id)
+}
+
+/// mmap
+pub fn mmap(start: usize, len: usize, port: usize) -> isize {
+    TASK_MANAGER.mmap(start, len, port)
+}
+/// munmap
+pub fn munmap(start: usize, len: usize) -> isize {
+    TASK_MANAGER.munmap(start, len)
 }
