@@ -5,16 +5,25 @@ use alloc::vec;
 use alloc::vec::Vec;
 use bitflags::*;
 
+// page table entry flags
 bitflags! {
     /// page table entry flags
     pub struct PTEFlags: u8 {
+        /// Valid: the PTE is valid.
         const V = 1 << 0;
+        /// Read: the page is readable.
         const R = 1 << 1;
+        /// Write: the page is writable.
         const W = 1 << 2;
+        /// Execute: the page is executable.
         const X = 1 << 3;
+        /// User: the page is accessible from user mode.
         const U = 1 << 4;
+        /// Global: the mapping is global across address spaces.
         const G = 1 << 5;
+        /// Accessed: the page has been accessed.
         const A = 1 << 6;
+        /// Dirty: the page has been written to.
         const D = 1 << 7;
     }
 }
@@ -108,7 +117,7 @@ impl PageTable {
         result
     }
     /// Find PageTableEntry by VirtPageNum
-    fn find_pte(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
+    pub fn find_pte(&self, vpn: VirtPageNum) -> Option<&mut PageTableEntry> {
         let idxs = vpn.indexes();
         let mut ppn = self.root_ppn;
         let mut result: Option<&mut PageTableEntry> = None;

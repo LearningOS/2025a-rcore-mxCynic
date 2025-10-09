@@ -300,6 +300,57 @@ impl MemorySet {
             false
         }
     }
+
+    /// mmap
+    pub fn mmap(&mut self, start: usize, len: usize, prot: usize, page_table: PageTable) -> isize {
+        let start_va = VirtAddr::from(start);
+        let end_va: VirtAddr = VirtAddr::from(start + len).ceil().into();
+        let map_perm = MapPermission::from_bits((prot as u8) << 1).unwrap() | MapPermission::U;
+
+        // 检查start_va和end_va是否合法
+        if self.areas.iter().any(|area| {
+            !(end_va <= area.vpn_range.get_start().into()
+                || start_va >= area.vpn_range.get_end().into())
+        }) {
+            return -1;
+        };
+
+        // 检查是否存在已经映射的vpn
+        for vpn in start_va.floor().0..end_va.floor().0 {
+            if let Some(pte) = page_table.find_pte(vpn.into()) {
+                if pte.is_valid() {
+                    return -1;
+                }
+            }
+        }
+
+        let new_eara = MapArea::new(start_va, end_va, MapType::Framed, map_perm);
+
+        self.push(new_eara, None);
+
+        0
+    }
+    /// ummap
+    pub fn munmap(&mut self, start: usize, len: usize, page_table: &mut PageTable) -> isize {
+        let areas = &mut self.areas;
+
+        let start_vpn = VirtAddr::from(start).floor();
+        let end_vpn = VirtAddr::from(start + len).ceil();
+
+        for vpn in start_vpn.0..end_vpn.0 {
+            let vpn = VirtPageNum(vpn);
+            for area in areas.iter_mut() {
+                if area.vpn_range.get_start() == vpn {
+                    area.unmap(page_table);
+                    break;
+                }
+            }
+
+            areas.retain(|area| area.vpn_range.get_start() != vpn);
+        }
+
+        0
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
